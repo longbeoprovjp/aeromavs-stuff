@@ -36,7 +36,7 @@ except ImportError:
 # Network Configuration
 # The laptop acts as a TCP SERVER - it waits for the Raspberry Pi to connect
 HOST = '0.0.0.0'  # Listen on all network interfaces (allows any IP to connect)
-PORT = 5555       # Must match the port in Raspberry Pi script
+PORT = 4444       # Must match the port in Raspberry Pi script
 
 # Data Storage
 DATA_DIR = Path("./hx1_received_data")

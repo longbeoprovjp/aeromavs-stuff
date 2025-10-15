@@ -57,8 +57,8 @@ except ImportError as e:
 # Network Configuration
 # The Raspberry Pi will CONNECT to the laptop as a TCP client
 # Reference: https://docs.python.org/3/library/socket.html
-LAPTOP_IP = "192.168.1.100"  # Change this to your laptop's IP address
-DATA_PORT = 5555  # Port number for data transmission
+LAPTOP_IP = "192.168.2.1"  # Change this to your laptop's IP address
+DATA_PORT = 4444  # Port number for data transmission
 
 # I2C Device Addresses
 # Reference: I2C addressing - https://www.nxp.com/docs/en/user-guide/UM10204.pdf
