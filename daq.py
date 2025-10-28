@@ -101,65 +101,73 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)  # Create if doesn't exist
 # DUMMY DATA GENERATOR (used when hardware not available)
 # =============================================================================
 
-def get_dummy_data(self):
+class DummyDataGenerator:
     """
-    Generate dummy data for a 60-second burn (stress test mode).
-    
-    Burn profile:
-    - 0-1s: Ignition ramp-up
-    - 1-55s: Steady-state burn with realistic fluctuations
-    - 55-60s: Tail-off shutdown
-    
-    Returns:
-        dict: Sensor readings with realistic noise and dynamics
+    Generates realistic dummy sensor data for testing without hardware.
+    Simulates a 2-second burn profile based on CDR specifications (page 55).
     """
-    import random
+    def __init__(self):
+        self.start_time = time.time()
+
+    def get_dummy_data(self):
+    	"""
+    	Generate dummy data for a 60-second burn (stress test mode).
     
-    # Time since test start
-    elapsed = time.time() - self.start_time
+    	Burn profile:
+    	- 0-1s: Ignition ramp-up
+    	- 1-55s: Steady-state burn with realistic fluctuations
+    	- 55-60s: Tail-off shutdown
     
-    # === CHAMBER PRESSURE ===
-    if elapsed < 1.0:  # Ignition phase (0-1s)
-        chamber_pressure = 440 * (elapsed / 1.0) + random.uniform(-20, 20)
-    elif elapsed < 55.0:  # Steady burn (1-55s)
-        chamber_pressure = 440 + random.uniform(-15, 15)
-        # Add slow drift over time (±2% variation)
-        drift = 0.02 * random.uniform(-1, 1) * (elapsed / 55.0)
-        chamber_pressure *= (1.0 + drift)
-    else:  # Tail-off (55-60s)
-        progress = (60.0 - elapsed) / 5.0  # Goes from 1.0 to 0.0
-        chamber_pressure = 440 * progress + random.uniform(-10, 10)
+    	Returns:
+        	dict: Sensor readings with realistic noise and dynamics
+    	"""
+    	import random
     
-    # === TANK PRESSURE (decreases as oxidizer consumed) ===
-    # Blowdown from 800 PSI to 400 PSI over 60 seconds
-    tank_pressure = 800 - (400 * elapsed / 60.0) + random.uniform(-5, 5)
+    	# Time since test start
+    	elapsed = time.time() - self.start_time
     
-    # === THRUST (follows chamber pressure) ===
-    if elapsed < 1.0:  # Ramp-up
-        thrust = 153 * (elapsed / 1.0) + random.uniform(-8, 8)
-    elif elapsed < 55.0:  # Steady
-        thrust = 153 + random.uniform(-5, 5)
-        # Match chamber pressure drift
-        drift = 0.02 * random.uniform(-1, 1) * (elapsed / 55.0)
-        thrust *= (1.0 + drift)
-    else:  # Tail-off
-        progress = (60.0 - elapsed) / 5.0
-        thrust = 153 * progress + random.uniform(-5, 5)
+    	# === CHAMBER PRESSURE ===
+    	if elapsed < 1.0:  # Ignition phase (0-1s)
+        	chamber_pressure = 440 * (elapsed / 1.0) + random.uniform(-20, 20)
+    	elif elapsed < 55.0:  # Steady burn (1-55s)
+        	chamber_pressure = 440 + random.uniform(-15, 15)
+        	# Add slow drift over time (±2% variation)
+        	drift = 0.02 * random.uniform(-1, 1) * (elapsed / 55.0)
+        	chamber_pressure *= (1.0 + drift)
+    	else:  # Tail-off (55-60s)
+        	progress = (60.0 - elapsed) / 5.0  # Goes from 1.0 to 0.0
+        	chamber_pressure = 440 * progress + random.uniform(-10, 10)
     
-    # === CHAMBER TEMPERATURE ===
-    if elapsed < 1.5:  # Heat-up
-        chamber_temp = 2700 * (elapsed / 1.5) + random.uniform(-50, 50)
-    elif elapsed < 55.0:  # Steady state
-        chamber_temp = 2700 + random.uniform(-100, 100)
-    else:  # Cool-down starts
-        chamber_temp = 2700 - (500 * (elapsed - 55.0) / 5.0) + random.uniform(-100, 100)
+    	# === TANK PRESSURE (decreases as oxidizer consumed) ===
+    	# Blowdown from 800 PSI to 400 PSI over 60 seconds
+    	tank_pressure = 800 - (400 * elapsed / 60.0) + random.uniform(-5, 5)
     
-    return {
-        'chamber_pressure_psi': max(0, chamber_pressure),
-        'tank_pressure_psi': max(0, tank_pressure),
-        'thrust_n': max(0, thrust),
-        'chamber_temp_c': max(0, chamber_temp)
-    }
+    	# === THRUST (follows chamber pressure) ===
+    	if elapsed < 1.0:  # Ramp-up
+        	thrust = 153 * (elapsed / 1.0) + random.uniform(-8, 8)
+    	elif elapsed < 55.0:  # Steady
+        	thrust = 153 + random.uniform(-5, 5)
+        	# Match chamber pressure drift
+        	drift = 0.02 * random.uniform(-1, 1) * (elapsed / 55.0)
+        	thrust *= (1.0 + drift)
+    	else:  # Tail-off
+        	progress = (60.0 - elapsed) / 5.0
+        	thrust = 153 * progress + random.uniform(-5, 5)
+    
+    	# === CHAMBER TEMPERATURE ===
+    	if elapsed < 1.5:  # Heat-up
+        	chamber_temp = 2700 * (elapsed / 1.5) + random.uniform(-50, 50)
+    	elif elapsed < 55.0:  # Steady state
+        	chamber_temp = 2700 + random.uniform(-100, 100)
+    	else:  # Cool-down starts
+        	chamber_temp = 2700 - (500 * (elapsed - 55.0) / 5.0) + random.uniform(-100, 100)
+    
+    	return {
+        	'chamber_pressure_psi': max(0, chamber_pressure),
+        	'tank_pressure_psi': max(0, tank_pressure),
+        	'thrust_n': max(0, thrust),
+        	'chamber_temp_c': max(0, chamber_temp)
+    	}
 
 # =============================================================================
 # SENSOR INTERFACE FUNCTIONS
