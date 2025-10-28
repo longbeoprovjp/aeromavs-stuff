@@ -63,14 +63,14 @@ DATA_PORT = 4444  # Port number for data transmission
 # I2C Device Addresses
 # Reference: I2C addressing - https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 I2C_BUS_NUMBER = 1  # Raspberry Pi uses I2C bus 1 (pins 3 and 5)
-ADS1115_ADDRESS = 0x48  # ADS1115 ADC default address (can be 0x48-0x4B)
+ADS1115_ADDRESS = 0x48  # ADS1115 ADC default address (can be 0x48 to 0x4B)
 LOAD_CELL_AMP_ADDRESS = 0x2A  # HX711 I2C adapter or similar
 
 # SPI Configuration for Thermocouple
 # Reference: https://www.raspberrypi.com/documentation/computers/raspberry-pi.html
 SPI_CS_PIN = board.D8 if HARDWARE_AVAILABLE else None  # Chip Select pin (CE0)
 
-# GPIO Pin Assignments for Solenoid Valves (BCM numbering)
+# GPIO Pin Assignments for Solenoid Valves (BCM numbering), change if needed
 # Reference: https://pinout.xyz/
 VALVE_PINS = {
     'main_valve': 17,      # Main oxidizer valve
@@ -101,61 +101,65 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)  # Create if doesn't exist
 # DUMMY DATA GENERATOR (used when hardware not available)
 # =============================================================================
 
-class DummyDataGenerator:
+def get_dummy_data(self):
     """
-    Generates realistic dummy sensor data for testing without hardware.
-    Simulates a 2-second burn profile based on CDR specifications (page 55).
+    Generate dummy data for a 60-second burn (stress test mode).
+    
+    Burn profile:
+    - 0-1s: Ignition ramp-up
+    - 1-55s: Steady-state burn with realistic fluctuations
+    - 55-60s: Tail-off shutdown
+    
+    Returns:
+        dict: Sensor readings with realistic noise and dynamics
     """
-    def __init__(self):
-        self.start_time = time.time()
-        
-    def get_dummy_data(self):
-        """
-        Generate dummy data that mimics a real burn.
-        
-        Burn profile (from CDR page 55):
-        - Target chamber pressure: 440 PSI
-        - Tank pressure: 800 PSI nominal (blowdown to ~560 PSI)
-        - Average thrust: 153 N
-        - Chamber temperature: ~3000 K (2727°C)
-        
-        Returns:
-            dict: Sensor readings with realistic noise and dynamics
-        """
-        import random
-        
-        # Time since test start
-        elapsed = time.time() - self.start_time
-        
-        # Chamber pressure profile: ramps up, holds steady, drops at end
-        if elapsed < 0.2:  # Ignition transient
-            chamber_pressure = 440 * (elapsed / 0.2) + random.uniform(-20, 20)
-        elif elapsed < 1.8:  # Steady burn
-            chamber_pressure = 440 + random.uniform(-15, 15)
-        else:  # Tail-off
-            chamber_pressure = 440 * (2.0 - elapsed) / 0.2 + random.uniform(-10, 10)
-        
-        # Tank pressure: decreases as oxidizer is consumed (blowdown)
-        # Linear approximation: 800 PSI to 560 PSI over 2 seconds
-        tank_pressure = 800 - (240 * elapsed / 2.0) + random.uniform(-5, 5)
-        
-        # Thrust profile: follows chamber pressure
-        thrust = (chamber_pressure / 440.0) * 153 + random.uniform(-5, 5)
-        
-        # Chamber temperature: follows burn profile
-        if elapsed < 0.3:  # Heat-up
-            chamber_temp = 2700 * (elapsed / 0.3) + random.uniform(-50, 50)
-        elif elapsed < 1.8:  # Steady state
-            chamber_temp = 2700 + random.uniform(-100, 100)
-        else:  # Cool-down starts
-            chamber_temp = 2700 - (500 * (elapsed - 1.8) / 0.2)
-        
-        return {
-            'chamber_pressure_psi': max(0, chamber_pressure),
-            'tank_pressure_psi': max(0, tank_pressure),
-            'thrust_n': max(0, thrust),
-            'chamber_temp_c': max(0, chamber_temp)
-        }
+    import random
+    
+    # Time since test start
+    elapsed = time.time() - self.start_time
+    
+    # === CHAMBER PRESSURE ===
+    if elapsed < 1.0:  # Ignition phase (0-1s)
+        chamber_pressure = 440 * (elapsed / 1.0) + random.uniform(-20, 20)
+    elif elapsed < 55.0:  # Steady burn (1-55s)
+        chamber_pressure = 440 + random.uniform(-15, 15)
+        # Add slow drift over time (±2% variation)
+        drift = 0.02 * random.uniform(-1, 1) * (elapsed / 55.0)
+        chamber_pressure *= (1.0 + drift)
+    else:  # Tail-off (55-60s)
+        progress = (60.0 - elapsed) / 5.0  # Goes from 1.0 to 0.0
+        chamber_pressure = 440 * progress + random.uniform(-10, 10)
+    
+    # === TANK PRESSURE (decreases as oxidizer consumed) ===
+    # Blowdown from 800 PSI to 400 PSI over 60 seconds
+    tank_pressure = 800 - (400 * elapsed / 60.0) + random.uniform(-5, 5)
+    
+    # === THRUST (follows chamber pressure) ===
+    if elapsed < 1.0:  # Ramp-up
+        thrust = 153 * (elapsed / 1.0) + random.uniform(-8, 8)
+    elif elapsed < 55.0:  # Steady
+        thrust = 153 + random.uniform(-5, 5)
+        # Match chamber pressure drift
+        drift = 0.02 * random.uniform(-1, 1) * (elapsed / 55.0)
+        thrust *= (1.0 + drift)
+    else:  # Tail-off
+        progress = (60.0 - elapsed) / 5.0
+        thrust = 153 * progress + random.uniform(-5, 5)
+    
+    # === CHAMBER TEMPERATURE ===
+    if elapsed < 1.5:  # Heat-up
+        chamber_temp = 2700 * (elapsed / 1.5) + random.uniform(-50, 50)
+    elif elapsed < 55.0:  # Steady state
+        chamber_temp = 2700 + random.uniform(-100, 100)
+    else:  # Cool-down starts
+        chamber_temp = 2700 - (500 * (elapsed - 55.0) / 5.0) + random.uniform(-100, 100)
+    
+    return {
+        'chamber_pressure_psi': max(0, chamber_pressure),
+        'tank_pressure_psi': max(0, tank_pressure),
+        'thrust_n': max(0, thrust),
+        'chamber_temp_c': max(0, chamber_temp)
+    }
 
 # =============================================================================
 # SENSOR INTERFACE FUNCTIONS
@@ -720,20 +724,15 @@ def main():
     print(f"  Log Directory: {LOG_DIR}")
     
     try:
-        # Run three 2-second burns as per CDR requirements
-        for burn_number in range(1, 4):
-            test_id = f"HX1_BURN{burn_number}"
-            
-            input(f"\nPress ENTER to start {test_id}...")
-            run_test(test_id, duration_seconds=2.0)
-            
-            if burn_number < 3:
-                print(f"\n⏳ Waiting 30 seconds before next burn (cooldown period)...")
-                time.sleep(30)
-        
-        print("\n" + "="*60)
-        print("ALL TESTS COMPLETE")
-        print("="*60)
+    	# STRESS TEST: Single 60-second burn to verify system
+    	test_id = "HX1_STRESS_TEST_60S"
+    
+    	input(f"\nPress ENTER to start {test_id}...")
+    	run_test(test_id, duration_seconds=60.0)
+    
+    	print("\n" + "="*60)
+    	print("TEST COMPLETE")
+    	print("="*60)
     
     except KeyboardInterrupt:
         print("\n\nShutdown requested by user")
